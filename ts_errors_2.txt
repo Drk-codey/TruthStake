@@ -1,0 +1,1 @@
+﻿src/lib/genLayerClient.ts(5,3): error TS2353: Object literal may only specify known properties, and 'network' does not exist in type 'ClientConfig'.

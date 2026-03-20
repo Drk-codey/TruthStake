@@ -1,0 +1,5 @@
+﻿src/components/consensus/ConsensusVisualizer.tsx(95,15): error TS17001: JSX elements cannot have multiple attributes with the same name.
+src/constants/index.ts(1,37): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/constants/index.ts(2,46): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/constants/index.ts(3,41): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/lib/genLayerClient.ts(5,3): error TS2353: Object literal may only specify known properties, and 'network' does not exist in type 'ClientConfig'.
