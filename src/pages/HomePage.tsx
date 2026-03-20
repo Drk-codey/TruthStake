@@ -71,25 +71,6 @@ function StatCounter({ value, suffix, prefix, decimal = 0 }: {
 export default function HomePage() {
   const { data: bets, isLoading } = useAllBets();
   const featured = bets?.slice(0, 6) ?? [];
-  const carouselRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll carousel
-  useEffect(() => {
-    const el = carouselRef.current;
-    if (!el) return;
-    let paused = false;
-    const interval = setInterval(() => {
-      if (!paused && el) {
-        el.scrollLeft += 1;
-        if (el.scrollLeft + el.clientWidth >= el.scrollWidth) {
-          el.scrollLeft = 0;
-        }
-      }
-    }, 30);
-    el.addEventListener('mouseenter', () => { paused = true; });
-    el.addEventListener('mouseleave', () => { paused = false; });
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="min-h-screen">
@@ -259,24 +240,11 @@ export default function HomePage() {
             </Link>
           </motion.div>
 
-          {/* Horizontal scroll carousel */}
-          <div
-            ref={carouselRef}
-            className="scroll-x flex gap-5 pb-4"
-            style={{ scrollBehavior: 'smooth' }}
-            aria-label="Featured bets carousel"
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {isLoading
-              ? [...Array(4)].map((_, i) => (
-                <div key={i} className="flex-shrink-0 w-[360px]">
-                  <BetCardSkeleton />
-                </div>
-              ))
-              : featured.map((bet, i) => (
-                <div key={bet.id} className="flex-shrink-0 w-[360px]">
-                  <BetCard bet={bet} index={i} />
-                </div>
-              ))}
+              ? [...Array(6)].map((_, i) => <BetCardSkeleton key={i} />)
+              : featured.map((bet, i) => <BetCard key={bet.id} bet={bet} index={i} />)
+            }
           </div>
         </div>
       </section>

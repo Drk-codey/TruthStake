@@ -7,7 +7,7 @@ import type { Bet, BetStatus } from '../../types';
 import { CategoryBadge } from '../ui/Badge';
 import { StatusPulse } from '../ui/StatusPulse';
 import { Button } from '../ui/Button';
-import { useAcceptBet, useSettleBet } from '../../hooks/useBets';
+import { useAcceptBet, useSettleBet, useCancelBet } from '../../hooks/useBets';
 import { useAppStore } from '../../store/appStore';
 import { truncateAddress, truncateUrl, formatTokens, formatRelativeTime, getBetStatus } from '../../lib/formatters';
 import confetti from 'canvas-confetti';
@@ -26,6 +26,7 @@ export const BetCard: React.FC<BetCardProps> = ({
   const { wallet } = useAppStore();
   const acceptBet = useAcceptBet();
   const settleBet = useSettleBet();
+  const cancelBet = useCancelBet();
   const [justSettled, setJustSettled] = useState(false);
   const [shakeClass, setShakeClass] = useState('');
 
@@ -40,11 +41,15 @@ export const BetCard: React.FC<BetCardProps> = ({
 
   const handleAccept = async () => {
     if (!wallet.address) return;
+    if (wallet.balance < bet.stake) {
+      toast.error(`Insufficient balance. Need ${bet.stake} GEN, you have ${wallet.balance} GEN.`);
+      return;
+    }
     try {
       await acceptBet.mutateAsync({ betId: bet.id, taker: wallet.address });
       toast.success('Bet accepted! You are now the NO side.');
-    } catch {
-      toast.error('Failed to accept bet. Please try again.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to accept bet.');
     }
   };
 
@@ -71,6 +76,16 @@ export const BetCard: React.FC<BetCardProps> = ({
     } catch {
       toast.dismiss(`settle-${bet.id}`);
       toast.error('Settlement failed. Please try again.');
+    }
+  };
+
+  const handleCancel = async (id: number) => {
+    if (!wallet.address) return;
+    try {
+      await cancelBet.mutateAsync({ betId: id, creator: wallet.address });
+      toast.success('Bet cancelled successfully. Stake refunded.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel bet.');
     }
   };
 
@@ -168,58 +183,102 @@ export const BetCard: React.FC<BetCardProps> = ({
         </div>
       </div>
 
-      {/* Stake + time */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <TrendingUp size={14} style={{ color: 'var(--stake-amber)' }} />
-          <span className="text-sm font-bold" style={{ color: 'var(--stake-amber)' }}>
-            {formatTokens(bet.stake)}
+      {/* Stake + pot + time */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <TrendingUp size={14} style={{ color: 'var(--stake-amber)' }} />
+            <span className="text-sm font-bold" style={{ color: 'var(--stake-amber)' }}>
+              {formatTokens(bet.stake)}
+            </span>
+          </div>
+          {bet.created_at && (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {formatRelativeTime(bet.created_at)}
+            </span>
+          )}
+        </div>
+
+        {/* Pot display */}
+        <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span>Total pot</span>
+          <span className="font-bold" style={{ color: bet.no_address ? 'var(--stake-amber)' : 'var(--text-secondary)' }}>
+            {formatTokens(bet.pot ?? bet.stake)}
           </span>
         </div>
-        {bet.created_at && (
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {formatRelativeTime(bet.created_at)}
-          </span>
+
+        {/* Potential winnings for open bets */}
+        {status === 'open' && !isOwner && (
+          <div
+            className="text-xs px-2 py-1 rounded-lg text-center mt-1"
+            style={{ background: 'rgba(34,211,122,0.08)', color: 'var(--yes-green)' }}
+          >
+            ✓ Accept to win {formatTokens(bet.stake * 2)} if NO
+          </div>
+        )}
+
+        {status === 'open' && bet.expires_at && (
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            Expires {formatRelativeTime(bet.expires_at - Date.now() * 2)} {/* Fix logical representation */}
+          </p>
         )}
       </div>
 
       {/* Actions */}
       {!bet.settled && (
-        <div className="flex gap-2 mt-auto">
-          {canAccept && (
-            <Button
-              variant="primary"
-              className="flex-1"
-              onClick={handleAccept}
-              loading={acceptBet.isPending}
-              icon={<Zap size={15} />}
-              aria-label={`Accept bet: ${bet.question}`}
-            >
-              Accept Bet
-            </Button>
-          )}
-          {canSettle && (
-            <Button
-              variant="amber"
-              className="flex-1"
-              onClick={handleSettle}
-              loading={settleBet.isPending}
-              icon={<CheckCircle2 size={15} />}
-              aria-label={`Settle bet: ${bet.question}`}
-            >
-              Settle
-            </Button>
-          )}
-          {!canAccept && !canSettle && (
-            <Link to={`/bets/${bet.id}`} className="flex-1">
-              <button
-                className="btn btn-ghost w-full"
-                aria-label={`View bet details: ${bet.question}`}
+        <div className="flex flex-col gap-2 mt-auto">
+          <div className="flex gap-2">
+            {canAccept && (
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={handleAccept}
+                loading={acceptBet.isPending}
+                icon={<Zap size={15} />}
+                aria-label={`Accept bet: ${bet.question}`}
               >
-                View Details
-                <ArrowRight size={15} />
-              </button>
-            </Link>
+                Accept Bet
+              </Button>
+            )}
+            {canSettle && (
+              <Button
+                variant="amber"
+                className="flex-1"
+                onClick={handleSettle}
+                loading={settleBet.isPending}
+                icon={<CheckCircle2 size={15} />}
+                aria-label={`Settle bet: ${bet.question}`}
+              >
+                Settle
+              </Button>
+            )}
+            {!canAccept && !canSettle && (
+              <Link to={`/bets/${bet.id}`} className="flex-1">
+                <button
+                  className="btn btn-ghost w-full"
+                  aria-label={`View bet details: ${bet.question}`}
+                >
+                  View Details
+                  <ArrowRight size={15} />
+                </button>
+              </Link>
+            )}
+          </div>
+          
+          {!bet.settled && isOwner && !bet.no_address && !bet.cancelled_at && (
+            <button
+              className="btn btn-danger btn-sm w-full mt-2"
+              onClick={() => handleCancel(bet.id)}
+              disabled={cancelBet.isPending}
+            >
+              {cancelBet.isPending ? 'Cancelling...' : 'Cancel & Refund'}
+            </button>
+          )}
+
+          {bet.cancelled_at && (
+            <div className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+              Cancelled — stake refunded
+            </div>
           )}
         </div>
       )}
@@ -227,7 +286,7 @@ export const BetCard: React.FC<BetCardProps> = ({
       {/* Settled outcome */}
       {bet.settled && (
         <div
-          className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl mt-auto"
           style={{
             background: bet.outcome === 'YES' ? 'var(--yes-green-glow)' : 'var(--no-red-glow)',
             border: `1px solid ${bet.outcome === 'YES' ? 'rgba(34,211,122,0.25)' : 'rgba(240,92,92,0.25)'}`,

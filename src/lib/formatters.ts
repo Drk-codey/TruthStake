@@ -18,6 +18,16 @@ export function formatTokens(amount: number, symbol = 'GEN'): string {
  */
 export function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
+  if (diff < 0) {
+    // Future time
+    const abs = Math.abs(diff);
+    const minutes = Math.floor(abs / 60_000);
+    const hours = Math.floor(abs / 3_600_000);
+    const days = Math.floor(abs / 86_400_000);
+    if (minutes < 60) return `in ${minutes}m`;
+    if (hours < 24) return `in ${hours}h`;
+    return `in ${days}d`;
+  }
   const minutes = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
   const days = Math.floor(diff / 86_400_000);
@@ -26,6 +36,14 @@ export function formatRelativeTime(ts: number): string {
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
   return `${days}d ago`;
+}
+
+export function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'now';
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 /**

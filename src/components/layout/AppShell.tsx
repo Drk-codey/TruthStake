@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
+import { BottomNav } from './BottomNav';
 import { Toaster } from 'sonner';
 import { ConsensusModal } from '../consensus/ConsensusVisualizer';
 
@@ -10,9 +11,10 @@ export const AppShell: React.FC = () => (
     style={{ background: 'var(--bg-deep)' }}
   >
     <Navbar />
-    <main>
+    <main className="pb-16 md:pb-0">
       <Outlet />
     </main>
+    <BottomNav />
     <ConsensusModal />
     <Toaster
       position="bottom-right"

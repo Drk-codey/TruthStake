@@ -71,6 +71,9 @@ export const CreateBetForm: React.FC = () => {
     outcome: null,
     category: watchAll.category as BetCategory,
     created_at: Date.now(),
+    expires_at: Date.now() + 72 * 60 * 60 * 1000,
+    pot: watchAll.stake_amount ?? 100,
+    evidence_urls: [],
   };
 
   const onSubmit = async (data: FormValues) => {

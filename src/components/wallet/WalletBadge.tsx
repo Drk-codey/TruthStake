@@ -1,14 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wallet, ChevronDown, LogOut, Copy, Check, Zap } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 import { truncateAddress, formatTokens } from '../../lib/formatters';
+import { toast } from 'sonner';
 import { Button } from '../ui/Button';
 
 export const WalletBadge: React.FC = () => {
-  const { wallet, connectWallet, disconnectWallet } = useAppStore();
+  const { wallet, connectWallet, disconnectWallet, canClaim, nextClaimTime, claimDailyFaucet } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [claimCooldown, setClaimCooldown] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const next = nextClaimTime?.();
+      if (next) {
+        const diff = next - Date.now();
+        const h = Math.floor(diff / 3_600_000);
+        const m = Math.floor((diff % 3_600_000) / 60_000);
+        setClaimCooldown(`${h}h ${m}m`);
+      } else {
+        setClaimCooldown(null);
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [nextClaimTime]);
 
   const handleConnect = async () => {
     setIsConnecting(true);
@@ -76,7 +93,7 @@ export const WalletBadge: React.FC = () => {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div
-            className="absolute right-0 top-full mt-2 w-60 rounded-xl p-3 z-50 animate-scale-in"
+            className="absolute right-0 top-full mt-2 w-64 rounded-xl p-3 z-50 animate-scale-in"
             style={{
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-glass)',
@@ -101,6 +118,40 @@ export const WalletBadge: React.FC = () => {
                 {formatTokens(wallet.balance)}
               </span>
             </div>
+
+            {/* Locked balance row */}
+            {wallet.lockedBalance > 0 && (
+              <div className="px-2 py-2 rounded-lg mb-2 flex items-center justify-between text-xs"
+                  style={{ background: 'rgba(245,166,35,0.08)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Locked (bets)</span>
+                <span style={{ color: 'var(--stake-amber)' }}>{formatTokens(wallet.lockedBalance)}</span>
+              </div>
+            )}
+
+            {/* Win/loss record */}
+            <div className="px-2 py-1.5 mb-2 text-xs flex items-center justify-between">
+              <span style={{ color: 'var(--text-muted)' }}>Record</span>
+              <span className="font-bold">
+                <span style={{ color: 'var(--yes-green)' }}>{wallet.wins}W</span>
+                {' / '}
+                <span style={{ color: 'var(--no-red)' }}>{wallet.losses}L</span>
+              </span>
+            </div>
+
+            {/* Faucet button */}
+            <button
+              onClick={() => { claimDailyFaucet(); toast.success('Claimed 1,000 GEN! 🎉'); }}
+              disabled={!canClaim()}
+              className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-semibold transition-all mb-2"
+              style={{
+                background: canClaim() ? 'rgba(0,229,195,0.1)' : 'transparent',
+                color: canClaim() ? 'var(--accent-primary)' : 'var(--text-muted)',
+                border: canClaim() ? '1px solid rgba(0,229,195,0.25)' : '1px solid var(--border-subtle)',
+              }}
+            >
+              <span>{canClaim() ? '⚡ Claim 1,000 GEN' : `Next claim: ${claimCooldown ?? '—'}`}</span>
+              {canClaim() && <span className="w-2 h-2 rounded-full bg-[var(--accent-primary)] animate-pulse-glow" />}
+            </button>
 
             <button
               onClick={handleCopy}

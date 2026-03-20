@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Brain, Globe, Check, X } from 'lucide-react';
+import { Shield, Brain, Globe, Check } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 
 const VALIDATOR_ICONS = [Shield, Brain, Globe, Shield, Brain];
@@ -59,33 +59,38 @@ export const ConsensusVisualizer: React.FC = () => {
         {/* Validator nodes */}
         {VALIDATOR_ICONS.map((Icon, i) => {
           const agreed = i < consensus.agreementCount;
+          const angle = (i / 5) * 360;
+          
           return (
-            <motion.div
+            <div
               key={i}
-              className="absolute w-8 h-8 rounded-full flex items-center justify-center"
+              className="absolute inset-0"
               style={{
-                background: agreed
-                  ? 'rgba(34,211,122,0.2)'
-                  : 'var(--bg-elevated)',
-                border: agreed
-                  ? '1px solid var(--yes-green)'
-                  : '1px solid var(--border-glass)',
-                boxShadow: agreed ? '0 0 12px rgba(34,211,122,0.4)' : 'none',
-                // CSS orbit approach for more reliable animation
-                transformOrigin: 'center',
-                position: 'absolute',
-                left: `calc(50% + ${Math.cos((i / 5) * Math.PI * 2) * 80}px - 16px)`,
-                top: `calc(50% + ${Math.sin((i / 5) * Math.PI * 2) * 80}px - 16px)`,
-                animation: `orbit ${6 + i}s linear infinite`,
-                animationDelay: `-${ORBIT_DELAYS[i]}s`,
+                animation: `spin ${7 + i * 0.5}s linear infinite`,
+                animationDelay: `-${(i / 5) * (7 + i * 0.5)}s`,
               }}
             >
-              {agreed ? (
-                <Check size={14} style={{ color: 'var(--yes-green)' }} />
-              ) : (
-                <Icon size={14} style={{ color: 'var(--text-muted)' }} />
-              )}
-            </motion.div>
+              <motion.div
+                className="absolute w-8 h-8 rounded-full flex items-center justify-center"
+                style={{
+                  top: 0,
+                  left: '50%',
+                  transform: `translate(-50%, -50%) translateY(-80px) rotate(${-angle}deg)`,
+                  background: agreed ? 'rgba(34,211,122,0.2)' : 'var(--bg-elevated)',
+                  border: agreed ? '1px solid var(--yes-green)' : '1px solid var(--border-glass)',
+                  boxShadow: agreed ? '0 0 12px rgba(34,211,122,0.4)' : 'none',
+                  transition: 'background 0.4s, border-color 0.4s, box-shadow 0.4s',
+                }}
+                animate={agreed ? { scale: [1, 1.25, 1] } : {}}
+                transition={{ duration: 0.4 }}
+              >
+                {agreed ? (
+                  <Check size={13} style={{ color: 'var(--yes-green)' }} />
+                ) : (
+                  <Icon size={13} style={{ color: 'var(--text-muted)' }} />
+                )}
+              </motion.div>
+            </div>
           );
         })}
       </div>
@@ -148,13 +153,13 @@ export const ConsensusVisualizer: React.FC = () => {
 
 // Modal wrapper connected to store state
 export const ConsensusModal: React.FC = () => {
-  const { isConsensusModalOpen, closeConsensusModal, consensus } = useAppStore();
+  const { isConsensusModalOpen } = useAppStore();
+  const { updateConsensus, closeConsensusModal } = useAppStore();
 
   // Simulate progressive validator agreement
   useEffect(() => {
     if (!isConsensusModalOpen) return;
-
-    const { updateConsensus } = useAppStore.getState();
+    
     let count = 0;
     const timer = setInterval(() => {
       count++;
@@ -168,7 +173,7 @@ export const ConsensusModal: React.FC = () => {
     }, 800);
 
     return () => clearInterval(timer);
-  }, [isConsensusModalOpen, closeConsensusModal]);
+  }, [isConsensusModalOpen, updateConsensus, closeConsensusModal]);
 
   if (!isConsensusModalOpen) return null;
 

@@ -384,6 +384,11 @@ textarea.input-field {
   100% { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes orbit {
   0% { transform: rotate(0deg) translateX(80px) rotate(0deg); }
   100% { transform: rotate(360deg) translateX(80px) rotate(-360deg); }

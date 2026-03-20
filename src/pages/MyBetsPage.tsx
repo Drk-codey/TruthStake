@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, Plus, Trophy, Users } from 'lucide-react';
+import { Layers, Plus, Trophy, Users, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAllBets } from '../hooks/useBets';
 import { BetList } from '../components/bets/BetList';
 import { useAppStore } from '../store/appStore';
+import { formatTokens } from '../lib/formatters';
 
-type Tab = 'created' | 'accepted';
+type Tab = 'created' | 'accepted' | 'activity';
 
 export default function MyBetsPage() {
   const { wallet } = useAppStore();
@@ -26,6 +27,7 @@ export default function MyBetsPage() {
   const tabs = [
     { id: 'created' as Tab, label: 'Created', count: myCreatedBets.length, icon: <Layers size={16} /> },
     { id: 'accepted' as Tab, label: 'Accepted', count: myAcceptedBets.length, icon: <Users size={16} /> },
+    { id: 'activity' as Tab, label: 'Activity', count: wallet.transactions.length, icon: <Activity size={16} /> }
   ];
 
   if (!wallet.isConnected) {
@@ -81,7 +83,7 @@ export default function MyBetsPage() {
 
         {/* Tabs */}
         <div
-          className="flex gap-1 p-1 rounded-xl mb-8 w-fit"
+          className="flex gap-1 p-1 rounded-xl mb-8 w-fit scroll-x"
           style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
           role="tablist"
           aria-label="My bets tabs"
@@ -121,22 +123,57 @@ export default function MyBetsPage() {
           key={activeTab}
           id={`panel-${activeTab}`}
           role="tabpanel"
-          aria-label={activeTab === 'created' ? 'Created bets' : 'Accepted bets'}
+          aria-label={activeTab}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <BetList
-            bets={activeTab === 'created' ? myCreatedBets : myAcceptedBets}
-            isLoading={isLoading}
-            emptyTitle={activeTab === 'created' ? 'No bets created yet' : 'No bets accepted yet'}
-            emptyMessage={
-              activeTab === 'created'
-                ? 'Create your first prediction market!'
-                : 'Browse open bets and take a position'
-            }
-            showCreateCTA={activeTab === 'created'}
-          />
+          {activeTab === 'created' || activeTab === 'accepted' ? (
+            <BetList
+              bets={activeTab === 'created' ? myCreatedBets : myAcceptedBets}
+              isLoading={isLoading}
+              emptyTitle={activeTab === 'created' ? 'No bets created yet' : 'No bets accepted yet'}
+              emptyMessage={
+                activeTab === 'created'
+                  ? 'Create your first prediction market!'
+                  : 'Browse open bets and take a position'
+              }
+              showCreateCTA={activeTab === 'created'}
+            />
+          ) : (
+            <motion.div key="activity" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              {wallet.transactions.length === 0 ? (
+                <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
+                  No transactions yet
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {wallet.transactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="flex items-center justify-between p-4 rounded-xl"
+                      style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                          {tx.description}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                          {new Date(tx.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                      <span
+                        className="font-bold text-sm font-mono"
+                        style={{ color: tx.amount >= 0 ? 'var(--yes-green)' : 'var(--no-red)' }}
+                      >
+                        {tx.amount >= 0 ? '+' : ''}{formatTokens(Math.abs(tx.amount))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </div>

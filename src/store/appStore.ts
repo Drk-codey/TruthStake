@@ -1,43 +1,83 @@
+// src/store/appStore.ts
 import { create } from 'zustand';
-import type { WalletState, ConsensusState, BetOutcome } from '../types';
-import { truncateAddress } from '../lib/formatters';
+import type { BetOutcome, ConsensusState } from '../types';
+import {
+  getOrCreateWallet,
+  saveWallet,
+  canClaimFaucet,
+  claimFaucet,
+  getNextClaimTime,
+  type StoredWallet,
+} from '../lib/storage';
+
+interface WalletSlice {
+  address: string | null;
+  balance: number;
+  lockedBalance: number;
+  isConnected: boolean;
+  wins: number;
+  losses: number;
+  totalWon: number;
+  totalLost: number;
+  transactions: StoredWallet['transactions'];
+}
 
 interface AppStore {
-  wallet: Omit<WalletState, 'connect' | 'disconnect'>;
+  wallet: WalletSlice;
   consensus: ConsensusState;
   isConsensusModalOpen: boolean;
-  isCreateBetModalOpen: boolean;
   activeCategory: string;
   searchQuery: string;
 
   // Wallet actions
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
+  claimDailyFaucet: () => void;
+  canClaim: () => boolean;
+  nextClaimTime: () => number | null;
+  
+  // Internal: sync wallet from storage
+  _syncWalletFromStorage: () => void;
+  _updateStoredWallet: (updater: (w: StoredWallet) => StoredWallet) => void;
 
-  // Consensus actions
+  // Consensus modal
   openConsensusModal: (txHash: string) => void;
   closeConsensusModal: () => void;
   updateConsensus: (update: Partial<ConsensusState>) => void;
 
-  // UI actions
+  // UI
   setActiveCategory: (cat: string) => void;
   setSearchQuery: (q: string) => void;
-  openCreateBetModal: () => void;
-  closeCreateBetModal: () => void;
 }
 
-// Simulate mock wallet addresses for demo
-const DEMO_ADDRESSES = [
-  '0x3f4a8b2c1d9e0f5a7b6c3d8e4f1a2b3c4d5e6f7a',
-  '0xabc123def456abc123def456abc123def456abc1',
-  '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
-];
+function walletToSlice(w: StoredWallet, connected = true): WalletSlice {
+  return {
+    address: w.address,
+    balance: w.balance,
+    lockedBalance: w.lockedBalance,
+    isConnected: connected,
+    wins: w.wins,
+    losses: w.losses,
+    totalWon: w.totalWon,
+    totalLost: w.totalLost,
+    transactions: w.transactions,
+  };
+}
 
-export const useAppStore = create<AppStore>((set) => ({
+// Check if wallet was previously connected in this session
+const SESSION_CONNECTED_KEY = 'ts_session_connected';
+
+export const useAppStore = create<AppStore>((set, get) => ({
   wallet: {
     address: null,
-    isConnected: false,
     balance: 0,
+    lockedBalance: 0,
+    isConnected: false,
+    wins: 0,
+    losses: 0,
+    totalWon: 0,
+    totalLost: 0,
+    transactions: [],
   },
   consensus: {
     txHash: null,
@@ -47,30 +87,67 @@ export const useAppStore = create<AppStore>((set) => ({
     leaderProposal: null,
   },
   isConsensusModalOpen: false,
-  isCreateBetModalOpen: false,
   activeCategory: 'all',
   searchQuery: '',
 
   connectWallet: async () => {
-    // Simulate wallet connection delay
-    await new Promise((r) => setTimeout(r, 800));
-    const demoAddr = DEMO_ADDRESSES[Math.floor(Math.random() * DEMO_ADDRESSES.length)];
+    // Simulate connection delay (wallet unlock UX)
+    await new Promise((r) => setTimeout(r, 600));
+    const stored = getOrCreateWallet();
+    sessionStorage.setItem(SESSION_CONNECTED_KEY, '1');
+    set({ wallet: walletToSlice(stored, true) });
+  },
+
+  disconnectWallet: () => {
+    sessionStorage.removeItem(SESSION_CONNECTED_KEY);
     set({
       wallet: {
-        address: demoAddr,
-        isConnected: true,
-        balance: Math.floor(Math.random() * 5000) + 500,
+        address: null,
+        balance: 0,
+        lockedBalance: 0,
+        isConnected: false,
+        wins: 0,
+        losses: 0,
+        totalWon: 0,
+        totalLost: 0,
+        transactions: [],
       },
     });
   },
 
-  disconnectWallet: () => {
-    set({
-      wallet: { address: null, isConnected: false, balance: 0 },
-    });
+  claimDailyFaucet: () => {
+    const stored = getOrCreateWallet();
+    if (!canClaimFaucet(stored)) return;
+    const updated = claimFaucet(stored);
+    set({ wallet: walletToSlice(updated, true) });
   },
 
-  openConsensusModal: (txHash: string) => {
+  canClaim: () => {
+    const stored = getOrCreateWallet();
+    return canClaimFaucet(stored);
+  },
+
+  nextClaimTime: () => {
+    const stored = getOrCreateWallet();
+    return getNextClaimTime(stored);
+  },
+
+  _syncWalletFromStorage: () => {
+    const stored = getOrCreateWallet();
+    const isConnected = !!sessionStorage.getItem(SESSION_CONNECTED_KEY);
+    if (isConnected) {
+      set({ wallet: walletToSlice(stored, true) });
+    }
+  },
+
+  _updateStoredWallet: (updater) => {
+    const stored = getOrCreateWallet();
+    const updated = updater(stored);
+    saveWallet(updated);
+    set({ wallet: walletToSlice(updated, true) });
+  },
+
+  openConsensusModal: (txHash) => {
     set({
       isConsensusModalOpen: true,
       consensus: {
@@ -83,9 +160,7 @@ export const useAppStore = create<AppStore>((set) => ({
     });
   },
 
-  closeConsensusModal: () => {
-    set({ isConsensusModalOpen: false });
-  },
+  closeConsensusModal: () => set({ isConsensusModalOpen: false }),
 
   updateConsensus: (update) => {
     set((s) => ({ consensus: { ...s.consensus, ...update } }));
@@ -93,6 +168,9 @@ export const useAppStore = create<AppStore>((set) => ({
 
   setActiveCategory: (cat) => set({ activeCategory: cat }),
   setSearchQuery: (q) => set({ searchQuery: q }),
-  openCreateBetModal: () => set({ isCreateBetModalOpen: true }),
-  closeCreateBetModal: () => set({ isCreateBetModalOpen: false }),
 }));
+
+// Auto-restore wallet connection on app load
+if (sessionStorage.getItem(SESSION_CONNECTED_KEY)) {
+  setTimeout(() => useAppStore.getState()._syncWalletFromStorage(), 0);
+}
