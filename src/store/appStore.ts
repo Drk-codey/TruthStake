@@ -9,6 +9,7 @@ import {
   getNextClaimTime,
   type StoredWallet,
 } from '../lib/storage';
+import { genLayerClient, CONTRACT_ADDRESS } from '../lib/genLayerClient';
 
 interface WalletSlice {
   address: string | null;
@@ -93,9 +94,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
   connectWallet: async () => {
     // Simulate connection delay (wallet unlock UX)
     await new Promise((r) => setTimeout(r, 600));
+    
+    // Get or create local wallet identity
     const stored = getOrCreateWallet();
+    
+    // Register on-chain if first time
+    try {
+      await genLayerClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: 'register_user',
+        args: [],
+        value: 0n,
+      });
+    } catch {
+      // Already registered — ignore
+    }
+    
+    // Read on-chain balance
+    let updated = stored;
+    try {
+      const onChainBalance = await genLayerClient.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: 'get_balance',
+        args: [stored.address],
+      });
+      updated = { ...stored, balance: Number(onChainBalance) };
+      saveWallet(updated);
+    } catch {
+      console.warn('Failed to read contract balance');
+    }
+    
     sessionStorage.setItem(SESSION_CONNECTED_KEY, '1');
-    set({ wallet: walletToSlice(stored, true) });
+    set({ wallet: walletToSlice(updated, true) });
   },
 
   disconnectWallet: () => {
